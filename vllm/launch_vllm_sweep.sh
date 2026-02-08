@@ -110,6 +110,7 @@ done
 # -------------------------
 TENSOR_PARALLEL=$NUM_GPUS
 LOG_ROOT="\$SCRATCH/vllm_logs_${LOG_ROOT_SUFFIX}"
+LOG_ROOT_EXPANDED="${LOG_ROOT//\$SCRATCH/$SCRATCH}"
 
 if [[ "$ASYNC_SCHEDULING" == "true" ]]; then
     ASYNC_FLAG="--async-scheduling"
@@ -120,8 +121,11 @@ fi
 # -------------------------
 # Generate SBATCH script
 # -------------------------
+# Create results directory first
+mkdir -p "$LOG_ROOT_EXPANDED"
+
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-SBATCH_SCRIPT="sbatch_${LOG_ROOT_SUFFIX}_${TIMESTAMP}.sh"
+SBATCH_SCRIPT="$LOG_ROOT_EXPANDED/sbatch_${LOG_ROOT_SUFFIX}_${TIMESTAMP}.sh"
 
 cat > "$SBATCH_SCRIPT" << 'SBATCH_EOF'
 #!/bin/bash
@@ -243,25 +247,18 @@ echo "Total configs: $TOTAL_CONFIGS"
 echo "Array range: 0-$ARRAY_MAX"
 echo "======================================"
 echo ""
-echo "Generated SBATCH script: $SBATCH_SCRIPT"
+echo "SBATCH script will be saved to:"
+echo "  $SBATCH_SCRIPT"
 echo ""
 read -p "Submit job? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    # Expand LOG_ROOT for local use
-    LOG_ROOT_EXPANDED="${LOG_ROOT//\$SCRATCH/$SCRATCH}"
-    
-    # Create results directory and save SBATCH script
-    mkdir -p "$LOG_ROOT_EXPANDED"
-    cp "$SBATCH_SCRIPT" "$LOG_ROOT_EXPANDED/"
-    
     # Submit job
     sbatch --array=0-$ARRAY_MAX "$SBATCH_SCRIPT"
     
     echo ""
     echo "Job submitted!"
     echo "SBATCH script: $SBATCH_SCRIPT"
-    echo "Saved to: $LOG_ROOT_EXPANDED/$SBATCH_SCRIPT"
     echo ""
     echo "Monitor with: squeue -u \$USER"
     echo "View logs: ls -lh logs/"
